@@ -7,19 +7,112 @@ output:
 
 
 ## Loading and preprocessing the data
+```{r, echo=TRUE}
+# set working directory 
+#setwd('')
 
+# load the dataset
+df <- read.csv(unz("activity.zip", "activity.csv"), header = TRUE)
+
+# get the first rows of the dataset
+head(df)
+
+# get the last rows of the dataset
+tail(df)
+
+## check the structure
+str(df)
+
+## get the date as date
+df$date <- as.Date(df$date)
+
+```
 
 
 ## What is mean total number of steps taken per day?
 
+```{r, echo=TRUE}
+daily_steps <- tapply(df$steps, df$date, sum, na.rm=TRUE, simplify=T)
+# remove NA's
+daily_steps <- daily_steps[!is.na(daily_steps)]
+
+hist(x=daily_steps,
+     col="green",
+     breaks=20,
+     xlab="Daily Steps Taken (without NA's)",
+     ylab="Frequency")
+```
+
+Means and median of steps taken
+```{r, echo=TRUE}
+mean(daily_steps)
+median(daily_steps)
+```
 
 
 ## What is the average daily activity pattern?
+```{r, echo=TRUE}
+avg_steps <- tapply(df$steps, df$interval, mean, na.rm=TRUE, simplify=T)
+df_avg <- data.frame(interval=as.integer(names(avg_steps)), avg=avg_steps)
 
+with(df_avg,
+     plot(interval,
+          avg,
+          type="l",
+          xlab="5-minute intervals",
+          ylab="average steps in the interval across all days"))
+```
 
 
 ## Imputing missing values
+```{r, echo=TRUE}
+# seems like there are NA's in the data check out how many (we could do the following with a simple sapply as well)
+sum(is.na(df$steps))
+sum(is.na(df$date))
+sum(is.na(df$interval))
 
+# seems there NA's only in steps. Check the percentage 
+sum(is.na(df$steps))/nrow(df) # (gives 13%. We will just leave this here)
 
+```
+Let's choose a strategy to impute the missing valus
+The strategy we will use is the mean data for each 5-min interval to impute to the NA's in that interval
+
+```{r, echo=TRUE}
+Imputed_Df <- df
+NAs <- is.na(Imputed_Df$steps)
+avg_steps <- tapply(df$steps, df$interval, mean, na.rm=TRUE, simplify=T)
+Imputed_Df$steps[NAs] <- avg_steps[as.character(Imputed_Df$interval[NAs])]
+```
+Now let's make a histogram
+```{r, echo=TRUE}
+daily_steps_Imputed<- tapply(Imputed_Df$steps, Imputed_Df$date, sum, na.rm=TRUE, simplify=T)
+hist(x=daily_steps_Imputed,
+     col="green",
+     breaks=20,
+     xlab="Daily Steps Taken (after imputation)",
+     ylab="Frequency")
+```
 
 ## Are there differences in activity patterns between weekdays and weekends?
+Getting the weekdays first 
+```{r, echo=TRUE}
+library(dplyr)
+Imputed_Df$weekdays <- weekdays(Imputed_Df$date)
+Imputed_Df <- mutate(Imputed_Df, weekdays_factor = ifelse(weekdays == 'Sonntag' | weekdays == 'Samstag', 'weekend', 'weekday' ))
+```
+
+Now create a plot
+
+```{r, echo=TRUE}
+df_WeekdaysAVG <- aggregate(steps ~ weekdays_factor + interval, data=Imputed_Df, na.rm = TRUE, FUN=mean)
+
+library(lattice)
+xyplot(steps ~ interval | factor(weekdays_factor),
+       layout = c(1, 2),
+       xlab="Interval",
+       ylab="Number of steps taken",
+       type="l",
+       lty=1,
+       data=df_WeekdaysAVG)
+```
